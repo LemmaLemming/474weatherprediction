@@ -1,11 +1,16 @@
 import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
 data = pd.read_csv("./2013-2025weatherData.csv")
 
 data["Temp (°C)"]= pd.to_numeric(data["Temp (°C)"], errors='coerce')
 data = data.dropna(subset = ["Temp (°C)"])
 data = data.dropna(axis=1,how="all")
-data.drop(["Longitude (x)", 
+data.drop(["Year",
+           "Month",
+           "Day",
+           "Time (LST)",
+           "Longitude (x)", 
            "Latitude (y)",
            "Station Name",
            "Climate ID",
@@ -20,6 +25,11 @@ data.drop(["Longitude (x)",
 
 data = data.sort_values("Date/Time (LST)")
 data["temp change"] =round( data["Temp (°C)"].diff(),2)
+
+if "Weather" in data.columns:
+    label_encoder = LabelEncoder()
+    data["Weather"] = label_encoder.fit_transform(data["Weather"])
+
 data = data.fillna(0)
 print(data)
 data.to_csv("weather.csv",index=False)
