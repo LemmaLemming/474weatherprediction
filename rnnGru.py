@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import GRU, Dense, Dropout
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.model_selection import TimeSeriesSplit
 import matplotlib.pyplot as plt
@@ -41,11 +41,8 @@ splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 # Define RNN model function
 def build_rnn_model(input_shape):
     model = Sequential([
-        LSTM(50, return_sequences=True, input_shape=input_shape),
+        GRU(64, input_shape=input_shape),
         Dropout(0.2),
-        LSTM(50, return_sequences=False),
-        Dropout(0.2),
-        Dense(25, activation="relu"),
         Dense(1)  # Regression output
     ])
     model.compile(optimizer="adam", loss="mse", metrics=["mae"])
