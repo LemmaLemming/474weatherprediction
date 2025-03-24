@@ -6,11 +6,9 @@ data = pd.read_csv("./2013-2025weatherData.csv")
 data["Temp (°C)"]= pd.to_numeric(data["Temp (°C)"], errors='coerce')
 data = data.dropna(subset = ["Temp (°C)"])
 data = data.dropna(axis=1,how="all")
-data.drop(["Year",
-           "Month",
-           "Day",
-           "Time (LST)",
-           "Longitude (x)", 
+
+data["Time (LST)"]  = pd.to_datetime(data['Time (LST)'], format='%H:%M').dt.hour
+data.drop(["Longitude (x)", 
            "Latitude (y)",
            "Station Name",
            "Climate ID",

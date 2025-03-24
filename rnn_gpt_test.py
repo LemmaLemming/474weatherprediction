@@ -17,7 +17,7 @@ df = df.sort_values(by="Date/Time (LST)").reset_index(drop=True)
 
 # Normalize numerical features
 num_features = [
-    "Temp (°C)", "Dew Point Temp (°C)", "Rel Hum (%)", "Wind Dir (10s deg)",
+    "Year", "Month", "Day", "Time (LST)", "Temp (°C)", "Dew Point Temp (°C)", "Rel Hum (%)", "Wind Dir (10s deg)",
     "Wind Spd (km/h)", "Visibility (km)", "Stn Press (kPa)", "Hmdx", "Wind Chill", "temp change"
 ]
 scaler = MinMaxScaler()
