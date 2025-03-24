@@ -3,25 +3,11 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import GRU, Dense, Dropout
-from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.model_selection import TimeSeriesSplit
 import matplotlib.pyplot as plt
 
-# Load the dataset
-file_path = "weather.csv"  # Update with the correct path
-df = pd.read_csv(file_path)
-
-# Convert Date/Time to datetime and sort
+df = pd.read_csv("weather.csv")
 df["Date/Time (LST)"] = pd.to_datetime(df["Date/Time (LST)"])
-df = df.sort_values(by="Date/Time (LST)").reset_index(drop=True)
-
-# Normalize numerical features
-num_features = [
-    "Temp (°C)", "Dew Point Temp (°C)", "Rel Hum (%)", "Wind Dir (10s deg)",
-    "Wind Spd (km/h)", "Visibility (km)", "Stn Press (kPa)", "Hmdx", "Wind Chill", "temp change"
-]
-scaler = MinMaxScaler()
-df[num_features] = scaler.fit_transform(df[num_features])
 
 # Create sequences
 SEQ_LENGTH = min(6, len(df) -1)  # Use 6 past hours to predict the next hour
@@ -38,12 +24,11 @@ y = target_data[SEQ_LENGTH:]
 tscv = TimeSeriesSplit(n_splits=5)
 splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 
-# Define RNN model function
 def build_rnn_model(input_shape):
     model = Sequential([
         GRU(64, input_shape=input_shape),
         Dropout(0.2),
-        Dense(1)  # Regression output
+        Dense(1)  
     ])
     model.compile(optimizer="adam", loss="mse", metrics=["mae"])
     return model

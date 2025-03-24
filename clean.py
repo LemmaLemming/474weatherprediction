@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 
 data = pd.read_csv("./2013-2025weatherData.csv")
 
@@ -29,6 +29,15 @@ if "Weather" in data.columns:
     data["Weather"] = label_encoder.fit_transform(data["Weather"])
 
 data = data.fillna(0)
+
+#Change these features to be [0,1]
+num_features = [
+    "Day", "Month", "Year", "Temp (°C)", "Dew Point Temp (°C)", "Rel Hum (%)", "Wind Dir (10s deg)",
+    "Wind Spd (km/h)", "Visibility (km)", "Stn Press (kPa)", "Hmdx", "Wind Chill", "temp change"
+]
+scaler = MinMaxScaler()
+data[num_features] = scaler.fit_transform(data[num_features])
+
 print(data)
 data.to_csv("weather.csv",index=False)
 
