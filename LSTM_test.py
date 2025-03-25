@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
@@ -8,123 +8,86 @@ from tensorflow.keras.layers import LSTM, Dense, Input
 from sklearn.preprocessing import MinMaxScaler
 
 
-# Load and prepare your data
-weatherData = pd.read_csv('weather.csv')
-# drop_columns = ['Date/Time (LST)']
-# weatherData = weatherData.drop(drop_columns, axis=1)
+
+# builds a RNN model (2 LSTM layers and 1 output layer)
+def build_rnn_model(input_shape):
+    model = Sequential([
+        Input(shape=input_shape),
+        LSTM(50, activation='tanh', return_sequences=True),
+        LSTM(50, activation='tanh'),
+        Dense(1)
+    ])
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    return model
+
+# creates sequences of data and target variables of a given sequence length
+def create_sequences(data, target, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i + seq_length])
+        y.append(target[i + seq_length])
+    return np.array(X), np.array(y)
 
 
-# Create sequences
-SEQ_LENGTH = min(24, len(weatherData) -1)  # Use 24 past hours to predict the next hour
-feature_columns = weatherData.columns.difference(["Date/Time (LST)", "temp change"]).tolist()
 
-seq_data = weatherData[feature_columns].to_numpy()
-target_data = weatherData["temp change"].to_numpy()
-
-# Generate rolling sequences
-X = np.lib.stride_tricks.sliding_window_view(seq_data, (SEQ_LENGTH, seq_data.shape[1])).squeeze(axis=1)
-y = target_data[SEQ_LENGTH:]
+# define sequence length (last 24 hours to predict the next hour)
+SEQ_LENGTH = min(24, len(df) - 1)
 
 
+# load and prepare data
+df = pd.read_csv("weather.csv")
+df["Date/Time (LST)"] = pd.to_datetime(df["Date/Time (LST)"])
+
+
+# create sequences of data and target variables
+feature_columns = df.columns.difference(["Date/Time (LST)", "temp change"]).tolist()
+seq_data = df[feature_columns].to_numpy()
+target_data = df["temp change"].to_numpy()
+
+# create a MinMaxScaler for feature and target data
+scaler_X = MinMaxScaler(feature_range=(0, 1))
+scaler_y = MinMaxScaler(feature_range=(0, 1))
+
+# normalize the feature and target data
+seq_data_scaled = scaler_X.fit_transform(seq_data)
+target_data_scaled = scaler_y.fit_transform(target_data.reshape(-1, 1)).flatten()
+
+# create sequences with normalized data
+X, y = create_sequences(seq_data_scaled, target_data_scaled, SEQ_LENGTH)
+
+# create TimeSeriesSplit
 tscv = TimeSeriesSplit(n_splits=5)
-
-
-# To store training and validation errors
-train_errors = []
-val_errors = []
-
 splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 
-adjusted_splits = [(train_idx[train_idx < len(y)], val_idx[val_idx < len(y)]) for train_idx, val_idx in splits]
 
 
-for curFold ,train_idx, val_idx in enumerate(adjusted_splits):
-    if len(train_idx) == 0 or len(val_idx) == 0:
-        print("Skipping fold", curFold, "due to empty training or validation set")
-        continue    
-    else:
-        print("Fold", curFold, "Train size:", len(train_idx), "Validation size:", len(val_idx))
-        
+
+# train and evaluate for 10 epochs on each fold
+history_list = []
+for fold, (train_idx, val_idx) in enumerate(splits):
+    print(f"Training on fold {fold + 1}...")
+
     X_train, X_val = X[train_idx], X[val_idx]
     y_train, y_val = y[train_idx], y[val_idx]
+
+    model = build_rnn_model((SEQ_LENGTH, X.shape[-1]))
+    history = model.fit(X_train, y_train, validation_data=(X_val, y_val),
+                        epochs=10, batch_size=32, verbose=1)
     
-    # Build LSTM model
-    model = Sequential([
-        Input(shape=(X_train.shape[1], X_train.shape[2])),  
-        LSTM(50, activation='tanh', return_sequences=True),
-        LSTM(50, activation='tanh'),
-        Dense(1)  # Single output for prediction
-    ])
-    
-    model.compile(optimizer='adam', loss='mean_squared_error')
-
-    # Train the model and track the training/validation loss for each epoch
-    history = model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_val, y_val), verbose=0)
-    
-    # # Store the training and validation error per epoch for each fold
-    # train_errors_fold = history.history['loss']  # Training loss per epoch
-    # val_errors_fold = history.history['val_loss']  # Validation loss per epoch
-    # train_errors.append(train_errors_fold)
-    # val_errors.append(val_errors_fold)
-
-
-# # Split data into features (X) and target (Y)
-# X = weatherData.iloc[:, :-1].values  # All columns except last
-# Y = weatherData.iloc[:, -1].values   # Last column as target
-
-# # Min-Max scaling for normalization
-# scaler_X = MinMaxScaler(feature_range=(0, 1))
-# scaler_Y = MinMaxScaler(feature_range=(0, 1))
-
-# X_scaled = scaler_X.fit_transform(X)
-# Y_scaled = scaler_Y.fit_transform(Y.reshape(-1, 1))
-
-# # Reshape X to be 3D as required by LSTM [samples, timesteps, features]
-# X_scaled_reshaped = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
+    history_list.append(history)
 
 
 
 
+# plot training and validation loss across all folds and epochs
+plt.figure(figsize=(10, 5))
+for i, history in enumerate(history_list):
+    plt.plot(history.history["loss"], label=f"Train Loss Fold {i+1}")
+    plt.plot(history.history["val_loss"], label=f"Val Loss Fold {i+1}")
 
-
-
-# Loop over each train/test split for TimeSeriesSplit
-for train_index, test_index in tscv.split(X_scaled_reshaped):
-    # Split data into training and testing sets based on the indices
-    X_train, X_test = X_scaled_reshaped[train_index], X_scaled_reshaped[test_index]
-    Y_train, Y_test = Y_scaled[train_index], Y_scaled[test_index]
-    
-    # Build LSTM model
-    model = Sequential([
-        Input(shape=(X_train.shape[1], X_train.shape[2])),  
-        LSTM(50, activation='tanh', return_sequences=True),
-        LSTM(50, activation='tanh'),
-        Dense(1)  # Single output for prediction
-    ])
-    
-    model.compile(optimizer='adam', loss='mean_squared_error')
-
-    # Train the model and track the training/validation loss for each epoch
-    history = model.fit(X_train, Y_train, epochs=10, batch_size=32, validation_data=(X_test, Y_test), verbose=0)
-    
-    # Store the training and validation error per epoch for each fold
-    train_errors_fold = history.history['loss']  # Training loss per epoch
-    val_errors_fold = history.history['val_loss']  # Validation loss per epoch
-    train_errors.append(train_errors_fold)
-    val_errors.append(val_errors_fold)
-    
-
-    
-
-# Calculate the average training and validation error across all folds
-avg_train_error = np.mean(train_errors, axis=0)  # Average training error over folds
-avg_val_error = np.mean(val_errors, axis=0)  # Average validation error over folds
-
-# Plot training and validation errors for each epoch
-plt.plot(range(1, len(avg_train_error) + 1), avg_train_error, label='Training Error (MSE)', color='blue')
-plt.plot(range(1, len(avg_val_error) + 1), avg_val_error, label='Validation Error (MSE)', color='red')
-plt.title('Training and Validation Error per Epoch')
-plt.xlabel('Epoch')
-plt.ylabel('Mean Squared Error (MSE)')
+plt.title("Training & Validation Loss Across Epochs")
+plt.xlabel("Epochs")
+plt.ylabel("MSE Loss")
 plt.legend()
 plt.show()
+
