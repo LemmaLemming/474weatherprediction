@@ -24,7 +24,7 @@ scaler = MinMaxScaler()
 df[num_features] = scaler.fit_transform(df[num_features])
 
 # Create sequences
-SEQ_LENGTH = min(6, len(df) - 1)  # Use 6 past hours to predict the next hour
+SEQ_LENGTH = min(24, len(df) - 1)  # Use 6 past hours to predict the next hour
 feature_columns = df.columns.difference(["Date/Time (LST)", "temp change"]).tolist()
 
 seq_data = df[feature_columns].to_numpy()
@@ -42,7 +42,7 @@ splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 def build_rnn_model(input_shape):
     model = Sequential([
         SimpleRNN(64, input_shape=input_shape, activation='tanh'),  # Replaced GRU with SimpleRNN
-        Dropout(0.2),
+        Dropout(0.5),
         Dense(1)  # Regression output
     ])
     model.compile(optimizer="adam", loss="mse", metrics=["mae"])
