@@ -29,15 +29,12 @@ def create_sequences(data, target, seq_length):
     return np.array(X), np.array(y)
 
 
-
-# define sequence length (last 24 hours to predict the next hour)
-SEQ_LENGTH = min(24, len(df) - 1)
-
-
 # load and prepare data
 df = pd.read_csv("weather.csv")
 df["Date/Time (LST)"] = pd.to_datetime(df["Date/Time (LST)"])
 
+# define sequence length (last 24 hours to predict the next hour)
+SEQ_LENGTH = min(24, len(df) - 1)
 
 # create sequences of data and target variables
 feature_columns = df.columns.difference(["Date/Time (LST)", "temp change"]).tolist()
