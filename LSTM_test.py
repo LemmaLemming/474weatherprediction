@@ -7,7 +7,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Input
 from sklearn.preprocessing import MinMaxScaler
 
-# builds a RNN model (2 LSTM layers and 1 output layer, and adds respective hyperparameters)
+# builds a RNN model (legacy helper function: not used below)
 def build_rnn_model(input_shape):
     model = Sequential([
         Input(shape=input_shape),
@@ -26,7 +26,7 @@ def create_sequences(data, target, seq_length):
         y.append(target[i + seq_length])
     return np.array(X), np.array(y)
 
-# plots the training and validation loss across all folds and epochs for each tuned model
+# legacy helper function that plots the training and validation loss across all folds and epochs for each tuned model
 def plot_loss(history_list, hyperparameter_name, hyperparameters):
     plt.figure(figsize=(10, 5))
     plt.title("Training & Validation Loss Across Epochs")
@@ -123,7 +123,7 @@ df["Date/Time (LST)"] = pd.to_datetime(df["Date/Time (LST)"])
 # define sequence length (last 24 hours to predict the next hour)
 SEQ_LENGTH = min(24, len(df) - 1)
 
-# define hyperparameters to tune
+# defines hyperparameters to tune as a dict
 hyperparameters_list = {
     'activation': ['tanh', 'relu'],
     'units': [5, 10, 20, 50, 70, 100],
@@ -160,23 +160,7 @@ investigate_hyperparameter("dropout", hyperparameters_list, X, y, SEQ_LENGTH, sp
 
 
 
-# train and evaluate for 10 epochs on each fold
-# history_list = []
-# for fold, (train_idx, val_idx) in enumerate(splits):
-#     print(f"Training on fold {fold + 1}...")
 
-#     X_train, X_val = X[train_idx], X[val_idx]
-#     y_train, y_val = y[train_idx], y[val_idx]
-
-#     model = build_rnn_model((SEQ_LENGTH, X.shape[-1]))
-#     history = model.fit(X_train, y_train, validation_data=(X_val, y_val),
-#                         epochs=10, batch_size=32, verbose=1)
-    
-#     history_list.append(history)
-    
-    
-    
-# train and evaluate for 10 epochs on each fold with different hyperparameters...
 
 
 
