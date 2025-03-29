@@ -25,8 +25,9 @@ print(f"Root Mean Squared Error: {rmse:.4f}\n")
 
 # Plot true vs predicted values
 plt.figure(figsize=(12, 6))
-plt.plot(df['Date/Time (LST)'], y_true, label='Actual', alpha=0.7)
-plt.plot(df['Date/Time (LST)'], y_pred, label='Persistence Model', alpha=0.7)
+plt.plot(df['Date/Time (LST)'], y_true, label='Actual', alpha=0.9, color='blue', linewidth=1.5)
+plt.plot(df['Date/Time (LST)'], y_pred, label='Persistence Model', alpha=0.6, color='orange', linestyle='--')
+
 plt.title('Persistence Model Prediction vs Actual Temp Change')
 plt.xlabel('Time')
 plt.ylabel('Temp Change (°C)')
