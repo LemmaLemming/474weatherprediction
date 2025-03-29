@@ -72,7 +72,7 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
                         GRU(50, activation=value, return_sequences=True),
-                        Dropout(0.2),
+                        Dropout(value),
                         GRU(50, activation=value),
                         Dense(1)
                     ])
@@ -80,7 +80,6 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
                         GRU(50, activation='tanh', return_sequences=True),
-                        Dropout(value),
                         GRU(50, activation='tanh'),
                         Dense(1)
                     ])
@@ -88,8 +87,8 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
             elif hyperparameter_name == "recurrent_dropout":
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
-                        GRU(50, activation='tanh', return_sequences=True),
-                        Dropout(value),
+                        GRU(50, activation='tanh', return_sequences=True, recurrent_dropout=value),
+                        Dropout(0.2),
                         GRU(50, activation='tanh'),
                         Dense(1)
                     ])
@@ -166,4 +165,4 @@ print("investigateing hyperparameters...")
 #investigate_hyperparameter("activation", hyperparameters_list, X, y, SEQ_LENGTH, splits)
 #investigate_hyperparameter("units", hyperparameters_list, X, y, SEQ_LENGTH, splits)
 investigate_hyperparameter("dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
-# investigate_hyperparameter("recurrent_dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
+investigate_hyperparameter("recurrent_dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
