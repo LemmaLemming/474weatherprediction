@@ -1,86 +1,127 @@
-import numpy as np
 import pandas as pd
-import tensorflow as tf
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import SimpleRNN, Dense, Dropout
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import TimeSeriesSplit
-import matplotlib.pyplot as plt
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras import Input
+from skopt import gp_minimize
+from skopt.space import Integer, Real
+from skopt.utils import use_named_args
+import tensorflow as tf
+import csv
 
-# Load the dataset
-file_path = "weather.csv"  # Update with the correct path
-df = pd.read_csv(file_path)
+# Load dataset
+df = pd.read_csv("weather.csv")
+df['Date/Time (LST)'] = pd.to_datetime(df['Date/Time (LST)'])
+df = df.sort_values(by='Date/Time (LST)')
 
-# Convert Date/Time to datetime and sort
-df["Date/Time (LST)"] = pd.to_datetime(df["Date/Time (LST)"])
-df = df.sort_values(by="Date/Time (LST)").reset_index(drop=True)
+# Select features and target
+features = ['Temp (°C)', 'Dew Point Temp (°C)', 'Rel Hum (%)', 'Wind Dir (10s deg)',
+            'Wind Spd (km/h)', 'Visibility (km)', 'Stn Press (kPa)', 'Hmdx',
+            'Wind Chill']  # Removed 'Weather' as it's categorical and needs different handling
+target = 'temp change'
 
-# Normalize numerical features
-num_features = [
-    "Temp (°C)", "Dew Point Temp (°C)", "Rel Hum (%)", "Wind Dir (10s deg)",
-    "Wind Spd (km/h)", "Visibility (km)", "Stn Press (kPa)", "Hmdx", "Wind Chill", "temp change"
-]
+df = df[features + [target]].dropna()
+
+# Scale the features
 scaler = MinMaxScaler()
-df[num_features] = scaler.fit_transform(df[num_features])
+scaled_data = scaler.fit_transform(df[features].values)
+labels = df[target].values
 
-# Create sequences
-SEQ_LENGTH = min(24, len(df) - 1)  # Use 6 past hours to predict the next hour
-feature_columns = df.columns.difference(["Date/Time (LST)", "temp change"]).tolist()
+# Define a function to create sequences for RNN
+def create_sequences(data, labels, window_size):
+    X, y = [], []
+    for i in range(len(data) - window_size):
+        X.append(data[i:(i + window_size)])
+        y.append(labels[i + window_size])
+    return np.array(X), np.array(y)
 
-seq_data = df[feature_columns].to_numpy()
-target_data = df["temp change"].to_numpy()
+# Search space for hyperparameters
+search_space = [
+    Integer(12, 48, name='window_size'),
+    Integer(1, 3, name='num_layers'),
+    Integer(16, 128, name='units'),
+    Real(1e-4, 1e-2, "log-uniform", name='learning_rate'),
+    Real(0.0, 0.5, name='dropout'),
+    Real(0.0, 1e-3, name='l2_reg'),
+    Integer(16, 64, name='batch_size')
+]
 
-# Generate rolling sequences
-X = np.lib.stride_tricks.sliding_window_view(seq_data, (SEQ_LENGTH, seq_data.shape[1])).squeeze(axis=1)
-y = target_data[SEQ_LENGTH:]
+# CSV setup for logging results
+csv_file = "rnn_tuning_results.csv"
+with open(csv_file, mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(['window_size', 'num_layers', 'units', 'learning_rate',
+                     'dropout', 'l2_reg', 'batch_size', 'avg_val_mae'])
 
-# Time-Series Cross-Validation
-tscv = TimeSeriesSplit(n_splits=5)
-splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
+@use_named_args(search_space)
+def objective(**params):
+    window_size = params['window_size']
+    X, y = create_sequences(scaled_data, labels, window_size)
 
-# Define RNN model function (Replaced GRU with SimpleRNN)
-def build_rnn_model(input_shape):
-    model = Sequential([
-        SimpleRNN(64, input_shape=input_shape, activation='tanh'),  # Replaced GRU with SimpleRNN
-        Dropout(0.5),
-        Dense(1)  # Regression output
-    ])
-    model.compile(optimizer="adam", loss="mse", metrics=["mae"])
-    return model
+    tscv = TimeSeriesSplit(n_splits=5)  # Adjust number of splits as needed
+    val_maes = []
 
-# Adjusted splits to avoid out-of-bounds errors
-adjusted_splits = [(train_idx[train_idx < len(y)], val_idx[val_idx < len(y)]) for train_idx, val_idx in splits]
+    for train_idx, val_idx in tscv.split(X):
+        X_train, X_val = X[train_idx], X[val_idx]
+        y_train, y_val = y[train_idx], y[val_idx]
 
-# Train and evaluate using time-series cross-validation
-history_list = []
-for fold, (train_idx, val_idx) in enumerate(adjusted_splits):
-    if len(train_idx) == 0 or len(val_idx) == 0:
-        print(f"Skipping fold {fold + 1}: index out of bound")
-        continue
-    else:
-        print(f"Training on fold {fold + 1}...")
+        model = Sequential()
+        model.add(Input(shape=(window_size, len(features))))
+        for i in range(params['num_layers']):
+            model.add(SimpleRNN(
+                int(params['units']),
+                activation='tanh',
+                return_sequences=(i < params['num_layers'] - 1),
+                kernel_regularizer=l2(params['l2_reg'])
+            ))
+            model.add(Dropout(params['dropout']))
+        model.add(Dense(1))
 
-    # Split data
-    X_train, X_val = X[train_idx], X[val_idx]
-    y_train, y_val = y[train_idx], y[val_idx]
+        optimizer = Adam(learning_rate=params['learning_rate'])
+        model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
 
-    # Build and train model
-    model = build_rnn_model((SEQ_LENGTH, X.shape[2]))
-    history = model.fit(X_train, y_train, validation_data=(X_val, y_val),
-                        epochs=10, batch_size=32, verbose=1)
-    
-    # Save training history
-    history_list.append(history)
+        history = model.fit(X_train, y_train,
+                            validation_data=(X_val, y_val),
+                            epochs=10,  # Adjust number of epochs as needed
+                            batch_size=params['batch_size'],
+                            verbose=0)
 
-# Plot Training Loss
-plt.figure(figsize=(10, 5))
-for i, history in enumerate(history_list):
-    plt.plot(history.history["loss"], label=f"Train Loss Fold {i+1}")
-    plt.plot(history.history["val_loss"], label=f"Val Loss Fold {i+1}")
+        _, val_mae = model.evaluate(X_val, y_val, verbose=0)
+        val_maes.append(val_mae)
 
-plt.title("Training & Validation Loss Across Folds")
-plt.xlabel("Epochs")
-plt.ylabel("MSE Loss")
-plt.legend()
-plt.show()
+    avg_val_mae = np.mean(val_maes)
 
+    # Log results to CSV
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            params['window_size'], params['num_layers'], params['units'],
+            params['learning_rate'], params['dropout'], params['l2_reg'],
+            params['batch_size'], avg_val_mae
+        ])
+
+    print(f"Params: {params}, Avg MAE: {avg_val_mae:.4f}")
+    return avg_val_mae
+
+# Run the optimization
+n_calls = 15  # Adjust the number of optimization calls
+results = gp_minimize(
+    func=objective,
+    dimensions=search_space,
+    n_calls=n_calls,
+    random_state=42
+)
+
+# Best result
+best_params = dict(zip(
+    ['window_size', 'num_layers', 'units', 'learning_rate',
+     'dropout', 'l2_reg', 'batch_size'],
+    results.x
+))
+
+print("\nBest Hyperparameters:")
+print(best_params)
