@@ -149,7 +149,7 @@ target_data_scaled = scaler_y.fit_transform(target_data.reshape(-1, 1)).flatten(
 X, y = create_sequences(seq_data_scaled, target_data_scaled, SEQ_LENGTH)
 
 # create TimeSeriesSplit
-tscv = TimeSeriesSplit(n_splits=5)
+tscv = TimeSeriesSplit(n_splits=6)
 splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 
 print("investigateing hyperparameters...")
