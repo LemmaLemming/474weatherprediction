@@ -1,12 +1,5 @@
-<<<<<<< HEAD
-# Ignore Python virtual environments
-.venv/
-.venv/lib  
-venv/
-ENV/
-env/
-=======
 # Virtual environment
+echo ".venv-howard/" >> .git/info/exclude
 .venv/
 venv/
 
@@ -41,4 +34,3 @@ pip-wheel-metadata/
 *.egg-info/
 dist/
 build/
->>>>>>> howard
