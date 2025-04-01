@@ -1,0 +1,178 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper, margin=1.5in]{geometry}
+\usepackage{times}
+\usepackage{url}
+\usepackage{amsmath}
+
+\title{\textbf{Short-Term Temperature Prediction Using Historical Weather Data from Victoria International Airport}}
+
+\author{NAMES HERE \\
+Faculty of Science, Computer Science Department \\
+University of Victoria}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Introduction}
+
+Predicting weather has typically been done through simple observation of weather behaviour and patterns. Modern instruments such as the Global Forecast System (GFS) and European Centre for Medium-Range Weather Forecasts (ECMWF)~\cite{surfertoday} run on powerful supercomputers based on various geographical data. Our novel approach uses simple machine learning models to predict weather. 
+
+Weather data is taken from the Government of Canada's historical weather database. The weather station we used was the one stationed at the Victoria International Airport, which has data from before 1960. For our project, we chose to take data from July 9th, 2013, to February 28th, 2025, which gives us 101,967 hours of data to train from. Using this data, we predict the weather temperature for the next hour. This project was originally designed to predict forest fires in various locations across British Columbia. Since then, the project scope has been simplified and only a subset of the data at Victoria Airport is used. 
+
+This model is still useful. Modern Numerical Weather Forecasting (NWF) systems require a significant amount of computing power. For example, the ECMWF supercomputer (Atos BullSequana XH2000) has a peak performance of 20 petaflops~\cite{ecmwf}, while the NOAA weather and climate supercomputer systems boast four 14.5 petaflop systems~\cite{noaa}. Using simple machine learning models is a computationally low-cost alternative method for backup or less important locations. 
+
+Given the nature of our weather data, our main models of evaluation are Recurrent Neural Networks (RNNs). For this, we will be using a Simple RNN, Long Short-Term Memory (LSTM), and Gated Recurrent Units (GRUs). These models are evaluated by two methods: Root Mean Square Error (RMSE) and comparison to the persistence method. 
+
+\section*{Preliminary}
+
+Error is measured using the Root Mean Square Error (RMSE), defined as:
+
+\[
+\text{RMSE} = \sqrt{\frac{1}{n} \sum_{i=1}^{n}(X_i - \hat{X}_i)^2}
+\]
+
+where \( X_i \) is the true value and \( \hat{X}_i \) is the predicted value[1]. RMSE ranges from \([0, \infty)\) and was chosen because it penalizes large prediction errors more heavily, which is especially useful for capturing sudden changes in weather.
+
+The persistence model is used as a baseline for comparison with machine learning models. It assumes that the temperature at the next time step is the same as the current time step:
+
+\[
+y_{t+1} = y_t
+\]
+
+This simple heuristic forms a strong baseline in time series forecasting tasks [2].
+
+\section*{Approach}
+
+\subsection*{Benchmark - Persistence Model}
+
+Our benchmark model yielded a Root Mean Squared Error (RMSE) of 0.0889~$\Delta$degrees. To evaluate the performance of our predictive models, we adopt a relative error metric by benchmarking against a persistence (naive) model, which assumes that the temperature at the next time step will be equal to the current temperature. Specifically, we compute the ratio of our model's error to the error of the persistence model. A ratio less than 1.0 indicates that our model outperforms the naive baseline, while a ratio greater than 1.0 suggests inferior predictive performance.
+
+\subsection*{Hyperparameter Optimization}
+\subsection{Hyperparameter Optimization with Bayesian Optimization}
+
+To optimize the hyperparameters of our Recurrent Neural Network (RNN) models, we used Bayesian Optimization, implemented using the \texttt{gp\_minimize} function from the \texttt{scikit-optimize} Python library. This approach is good for minimizing black-box objective functions that are expensive to evaluate using brute-force methods like grid search or manual tuning. Bayesian Optimization strategically selects hyperparameters by building a probabilistic model of the objective function, then tests this model through a guess and check approach.
+
+\subsubsection*{Gaussian Process Surrogate Model}
+
+The \texttt{gp\_minimize} function models the objective function \( f(\mathbf{x}) \) as a Gaussian Process [3]:
+
+\[
+f(\mathbf{x}) \sim \mathcal{GP}(m(\mathbf{x}), k(\mathbf{x}, \mathbf{x}'))
+\]
+
+with a mean function \( m(\mathbf{x}) = 0 \) and a covariance function \( k \). By default, \texttt{scikit-optimize} uses the Matern kernel, which is a generalization of the Squared Exponential (SE) kernel:
+
+\[
+k_{\text{Matern}}(\mathbf{x}, \mathbf{x}') = \sigma_f^2 \frac{2^{1 - \nu}}{\Gamma(\nu)} \left( \frac{\sqrt{2\nu} \|\mathbf{x} - \mathbf{x}'\|}{l} \right)^\nu K_\nu \left( \frac{\sqrt{2\nu} \|\mathbf{x} - \mathbf{x}'\|}{l} \right)
+\]
+
+where \( \nu \), \( \sigma_f^2 \), and \( l \) are kernel hyperparameters, and \( K_\nu \) is a modified Bessel function. This kernel allows for greater flexibility in modeling objective function smoothness.
+
+\subsubsection*{Posterior Inference}
+
+As we evaluate candidate configurations, \texttt{gp\_minimize} updates the GP model using the observed dataset \( D = \{(\mathbf{x}_i, y_i)\}_{i=1}^t \). The posterior distribution over a new candidate \( \mathbf{x}^* \) is computed as:
+
+\[
+f(\mathbf{x}^*) \mid X_t, \mathbf{y}_t \sim \mathcal{N}(\mu_t(\mathbf{x}^*), \sigma_t^2(\mathbf{x}^*))
+\]
+
+with posterior mean and variance:
+
+\[
+\mu_t(\mathbf{x}^*) = k(\mathbf{x}^*, X_t) (K(X_t, X_t) + \sigma_n^2 I)^{-1} \mathbf{y}_t
+\]
+\[
+\sigma_t^2(\mathbf{x}^*) = k(\mathbf{x}^*, \mathbf{x}^*) - k(\mathbf{x}^*, X_t) (K(X_t, X_t) + \sigma_n^2 I)^{-1} k(X_t, \mathbf{x}^*)
+\]
+
+These are implemented internally by the \texttt{gp\_minimize} function using exact GP inference with Cholesky decomposition which is a robust way of performing exact GP inference [4].
+
+\subsubsection*{Acquisition Function Optimization}
+
+To select the next hyperparameter configuration, \texttt{gp\_minimize} maximizes an \textbf{acquisition function}. By default, it uses the \textit{Expected Improvement (EI)} function:
+
+\[
+a_{EI}(\mathbf{x}) = \mathbb{E}[\max(0, y_{\text{best}} - f(\mathbf{x}) - \xi)]
+\]
+
+where \( y_{\text{best}} \) is the best observed objective value and \( \xi \geq 0 \) is an exploration parameter (default is 0.01). This function encourages sampling in areas that either have low predicted loss or high model uncertainty.
+
+\subsection*{Time Series Cross-Validation}
+
+For model selection, we focused on RNN-based models specifically designed for time series forecasting. This decision is motivated by two key factors. First, many non-recurrent models lack the memory mechanism required to effectively learn and recall previous label sequences, which is critical for capturing temporal dependencies in temperature prediction. Second, non-time-series models are often more prone to data leakage due to inappropriate partitioning schemes that violate the temporal order of the data.
+
+\subsection*{Optimizers}
+
+The machine learning models in this project were trained using the \textbf{Adam optimizer}, chosen for its adaptive learning rate mechanism and fast convergence compared to traditional Stochastic Gradient Descent (SGD). While both optimizers aim to minimize a loss function \( L(\theta) \) with respect to model parameters \( \theta \), their update strategies differs in various ways.
+
+Standard SGD updates parameters as:
+
+\[
+\theta_{t+1} = \theta_t - \eta_t \nabla_{\theta} L(\theta_t)
+\]
+
+where \( \eta_t \) is a fixed or decaying global learning rate. In contrast, Adam maintains per-parameter learning rates by using estimates of the first and second moments of the gradients:
+
+\[
+m_t = \beta_1 m_{t-1} + (1 - \beta_1) g_t,\quad s_t = \beta_2 s_{t-1} + (1 - \beta_2) g_t^2
+\]
+
+with \( g_t = \nabla_{\theta} L(\theta_t) \), and \( \beta_1 \) and \( \beta_2 \) as decay rates (typically \( 0.9 \) and \( 0.999 \), respectively). To correct initialization bias, Adam uses bias-corrected estimates:
+
+\[
+\hat{m}_t = \frac{m_t}{1 - \beta_1^t},\quad \hat{s}_t = \frac{s_t}{1 - \beta_2^t}
+\]
+
+The final parameter update rule is then:
+
+\[
+\theta_{t+1} = \theta_t - \frac{\eta_t}{\sqrt{\hat{s}_t} + \epsilon} \hat{m}_t
+\]
+
+where \( \epsilon \) is a small constant (usually \( 10^{-6} \)) for numerical stability. This formulation allows Adam to assign dynamic learning rates to each parameter, adjusting to their historical gradients. The incorporation of momentum via \( m_t \) makes Adam particularly well-suited for training deep neural networks. In practice, Adam has become a popular optimizer in deep learning research and applications.
+
+
+\begin{thebibliography}{9}
+
+\bibitem{surfertoday}
+Surfertoday.com, 
+\textit{The differences between the GFS and ECMWF weather models}, 
+\url{https://www.surfertoday.com/surfing/the-differences-between-the-gfs-and-ecmwf-weather-models}
+
+\bibitem{ecmwf}
+ECMWF, 
+\textit{Fact sheet: Supercomputing at ECMWF}, 
+\url{https://www.ecmwf.int/en/about/media-centre/focus/2022/fact-sheet-supercomputing-ecmwf}
+
+\bibitem{noaa}
+NOAA, 
+\textit{NOAA completes upgrade to weather and climate supercomputer system}, 
+\url{https://www.noaa.gov/news-release/noaa-completes-upgrade-to-weather-and-climate-supercomputer-system}
+
+\end{thebibliography}
+
+\subsection*{preliminary}
+
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{99}
+
+\bibitem{wiki_rmse}
+Wikipedia contributors, “Root mean square deviation,” \textit{Wikipedia, The Free Encyclopedia}, 2024. [Online]. Available: \url{https://en.wikipedia.org/wiki/Root_mean_square_deviation}
+
+\bibitem{persistence_model}
+ScienceDirect Topics, “Persistence Model,” \textit{ScienceDirect}, Elsevier. [Online]. Available: \url{https://www.sciencedirect.com/topics/engineering/persistence-model}
+
+\subsection*{Approch - Hyperparameter Optimization}
+
+\bibitem{skopt_gpmin}
+Scikit-Optimize developers, “\texttt{skopt.gp\_minimize} — scikit-optimize 0.9.0 documentation,” \textit{Scikit-Optimize}, 2020. [Online]. Available: \url{https://scikit-optimize.github.io/stable/modules/generated/skopt.gp_minimize.html}
+
+\bibitem{murphy_pml}
+K. P. Murphy, \textit{Probabilistic Machine Learning: An Introduction}. Cambridge, MA: The MIT Press, 2022, ch. 17.47.
+
+\end{thebibliography}
+
+\end{document}
