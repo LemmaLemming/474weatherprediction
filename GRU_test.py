@@ -4,15 +4,18 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Input
+from tensorflow.keras.layers import GRU, Dense, Input, Dropout
 from sklearn.preprocessing import MinMaxScaler
 
-# builds a RNN model (legacy helper function: not used below)
+
+
+# builds a RNN model (2 LSTM layers and 1 output layer)
 def build_rnn_model(input_shape):
     model = Sequential([
         Input(shape=input_shape),
-        LSTM(50, activation='tanh', return_sequences=True),
-        LSTM(50, activation='tanh'),
+        GRU(50, input_shape=input_shape, activation='tanh'),
+        Dropout(0.2),
+        GRU(50, input_shape=input_shape, activation='tanh'),
         Dense(1)
     ])
     model.compile(optimizer='adam', loss='mean_squared_error')
@@ -60,32 +63,38 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
             if hyperparameter_name == "units":
                     model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
-                        LSTM(value, activation='tanh', return_sequences=True),
-                        LSTM(value, activation='tanh'),
+                        GRU(value, activation='tanh', return_sequences=True),
+                        Dropout(0.2),
+                        GRU(value, activation='tanh'),
                         Dense(1)
                     ])
             elif hyperparameter_name == "activation":
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
-                        LSTM(50, activation=value, return_sequences=True),
-                        LSTM(50, activation=value),
+                        GRU(50, activation=value, return_sequences=True),
+                        Dropout(value),
+                        GRU(50, activation=value),
                         Dense(1)
                     ])
             elif hyperparameter_name == "dropout":
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
-                        LSTM(50, activation='tanh', return_sequences=True, dropout=value),
-                        LSTM(50, activation='tanh', dropout=value),
+                        GRU(50, activation='tanh', return_sequences=True),
+                        GRU(50, activation='tanh'),
                         Dense(1)
                     ])
                 
             elif hyperparameter_name == "recurrent_dropout":
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
-                        LSTM(50, activation='tanh', return_sequences=True, recurrent_dropout=value),
-                        LSTM(50, activation='tanh', recurrent_dropout=value),
+                        GRU(50, activation='tanh', return_sequences=True, recurrent_dropout=value),
+                        Dropout(0.2),
+                        GRU(50, activation='tanh'),
                         Dense(1)
                     ])
+
+            else:
+                return 
 
             model.compile(optimizer='adam', loss='mean_squared_error')
 
@@ -149,21 +158,11 @@ target_data_scaled = scaler_y.fit_transform(target_data.reshape(-1, 1)).flatten(
 X, y = create_sequences(seq_data_scaled, target_data_scaled, SEQ_LENGTH)
 
 # create TimeSeriesSplit
-tscv = TimeSeriesSplit(n_splits=6)
+tscv = TimeSeriesSplit(n_splits=5)
 splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 
 print("investigateing hyperparameters...")
-# investigate_hyperparameter("activation", hyperparameters_list, X, y, SEQ_LENGTH, splits)
-# investigate_hyperparameter("units", hyperparameters_list, X, y, SEQ_LENGTH, splits)
+#investigate_hyperparameter("activation", hyperparameters_list, X, y, SEQ_LENGTH, splits)
+#investigate_hyperparameter("units", hyperparameters_list, X, y, SEQ_LENGTH, splits)
 investigate_hyperparameter("dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
-# investigate_hyperparameter("recurrent_dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
-
-
-
-
-
-
-
-
-
-
+investigate_hyperparameter("recurrent_dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
