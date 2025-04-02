@@ -72,7 +72,7 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
                         GRU(50, activation=value, return_sequences=True),
-                        Dropout(value),
+                        Dropout(0.2),
                         GRU(50, activation=value),
                         Dense(1)
                     ])
@@ -80,6 +80,7 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
                 model = Sequential([
                         Input(shape=(SEQ_LENGTH, X.shape[-1])),
                         GRU(50, activation='tanh', return_sequences=True),
+                        Dropout(value),
                         GRU(50, activation='tanh'),
                         Dense(1)
                     ])
@@ -99,7 +100,7 @@ def investigate_hyperparameter(hyperparameter_name, hyperparameters, X, y, SEQ_L
             model.compile(optimizer='adam', loss='mean_squared_error')
 
             history = model.fit(X_train, y_train, validation_data=(X_val, y_val),
-                                epochs=10, batch_size=32, verbose=1)
+                                epochs=5, batch_size=32, verbose=1)
             
             history_list.append(history)
 
@@ -164,5 +165,5 @@ splits = [(train_idx, val_idx) for train_idx, val_idx in tscv.split(X)]
 print("investigateing hyperparameters...")
 #investigate_hyperparameter("activation", hyperparameters_list, X, y, SEQ_LENGTH, splits)
 #investigate_hyperparameter("units", hyperparameters_list, X, y, SEQ_LENGTH, splits)
-investigate_hyperparameter("dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
+#investigate_hyperparameter("dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
 investigate_hyperparameter("recurrent_dropout", hyperparameters_list, X, y, SEQ_LENGTH, splits)
