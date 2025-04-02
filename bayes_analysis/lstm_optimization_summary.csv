@@ -1,0 +1,7 @@
+parameter,value
+best_val_loss,0.00022158918242591122
+units,127
+activation,tanh
+epochs,18
+dropout_rate,0.10173620552612635
+learning_rate,0.003134446925735596
