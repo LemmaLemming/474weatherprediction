@@ -1,6 +1,7 @@
 <<<<<<< HEAD
 # Ignore Python virtual environments
 .venv/
+.venv/lib  
 venv/
 ENV/
 env/
