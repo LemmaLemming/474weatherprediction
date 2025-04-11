@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Input
@@ -37,19 +36,17 @@ target_data = df["temp change"].to_numpy()
 scaler_X = MinMaxScaler(feature_range=(0, 1))
 scaler_y = MinMaxScaler(feature_range=(0, 1))
 
-
 seq_data_scaled = scaler_X.fit_transform(seq_data)
 target_data_scaled = scaler_y.fit_transform(target_data.reshape(-1, 1)).flatten()
 X, y = create_sequences(seq_data_scaled, target_data_scaled, SEQ_LENGTH)
-
-
-model = build_rnn_model();
-history = model.fit(X, y, epochs=10, batch_size=32, verbose=1)
-
 split_indx = int(len(X) * 0.8)
+X_train = X[:split_indx]
+y_train = y[:split_indx]
 X_test =  X[split_indx:]
 y_test =  y[split_indx:]
 
+model = build_rnn_model();
+history = model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 y_predicted = model.predict(X_test)
 
 y_pred = scaler_y.inverse_transform(y_predicted.reshape(-1, 1)).flatten()
@@ -70,7 +67,7 @@ plt.fill_between(range(len(y_pred)),
 plt.title("Actual vs Predicted Temperature Change (Next Hour)")
 plt.xlabel("Time (1 step = 1 hour)")
 plt.ylabel("Temperature Change (°C)")
-plt.xlim(0, 500) 
+# plt.xlim(0, 500) 
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
